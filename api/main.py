@@ -14,7 +14,7 @@ def ping():
 
 @app.route("/api/posts", methods=["GET", "POST"])
 def get_posts():
-    data = request.form
+    data = request.query_string
     
     tags = data["tags"].split(",")
     sortBy = data["sortBy"] if "sortBy" in data.keys() else "id"
