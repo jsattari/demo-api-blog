@@ -1,4 +1,5 @@
 import os
+
 # os.system("./bootstrap.sh & ")
 
 tests = """
@@ -12,7 +13,8 @@ curl http://localhost:5000/api/posts -d "tags=history"
 curl http://localhost:5000/api/posts -d "tags="
 """
 
-for line in tests.strip().split('\n'):
-    if not line.startswith('#'):
-        cmd = line.strip() 
+# http://localhost:5000/posts?tag=history&sortBy=likes&direction=desc
+for line in tests.strip().split("\n"):
+    if not line.startswith("#"):
+        cmd = line.strip()
         os.system(cmd)
