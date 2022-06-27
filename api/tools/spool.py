@@ -32,12 +32,9 @@ class ThreadPool:
 
     def __init__(self, num_threads):
         self.tasks = Queue(num_threads)
-        self._lock = Lock()
 
         for _ in range(num_threads):
-            self._lock.acquire()
             Worker(self.tasks)
-            self._lock.release()
 
     def add_task(self, func, *args, **kargs):
         """Add a task to the queue"""
