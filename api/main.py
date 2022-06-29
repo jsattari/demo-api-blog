@@ -38,7 +38,7 @@ def get_posts():
             thread.start() """
 
         pool = ThreadPool(5)
-        pool.map(threadify(api_results, url, lock, make_request), tags)
+        pool.map(threadify(api_results, tags, lock, make_request), tags)
         pool.wait_completion()
 
         api_results = sort_array(get_uniques(api_results), sortBy, sortOrder)
