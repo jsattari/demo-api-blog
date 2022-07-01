@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from flask import Flask, jsonify, request
-from threading import Lock
-from api.tools.tools import *
+import requests
+from threading import Thread, Lock
 from api.tools.spool import *
 
 app = Flask(__name__)
@@ -31,15 +31,13 @@ def get_posts():
     try:
         api_results = []
 
-        """ for url in tags:
-            thread = Thread(
-                target=threadify(api_results, url, lock, make_request), args=()
-            )
-            thread.start() """
+        threads = []
 
-        pool = ThreadPool(5)
-        pool.map(threadify(api_results, tags, lock, make_request), tags)
-        pool.wait_completion()
+        for key, value in enumerate(tags):
+            threads.append(Worker(key, make_request, value, api_results))
+
+        for thread in threads:
+            thread.join()
 
         api_results = sort_array(get_uniques(api_results), sortBy, sortOrder)
 
