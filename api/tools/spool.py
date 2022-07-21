@@ -1,50 +1,80 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from queue import Queue
-from threading import *
+from threading import Thread, Lock
+import requests
+
+# create thread lock to avoid race condition
+lock = Lock()
 
 
 class Worker(Thread):
-    """Thread executing tasks from a given tasks queue"""
+    """
+    OOP style threading with additional parameters included
+        {
+            thread_id: unique thread identifier,
+            func: function to apply within thread,
+            url: url of api to access,
+            result: list where results should be appended
+        }
+    """
 
-    def __init__(self, tasks):
+    def __init__(self, thread_id, func, url: str, result: list):
         Thread.__init__(self)
-        self.tasks = tasks
+        self.thread_id = thread_id
+        self.func = func
+        self.url = url
+        self.result = result
         self.daemon = True
         self.start()
 
     def run(self):
-        while True:
-            func, args, kargs = self.tasks.get()
-            try:
-                func(*args, **kargs)
-            except Exception as e:
-                # An exception happened in this thread
-                print(e)
-            finally:
-                # Mark this task as done, whether an exception happened or not
-                self.tasks.task_done()
+        """
+        Thread run executable. Acquires lock then executes
+        function on input, then extends result list with the output
+        """
+        lock.acquire()
+        output = self.func(self.url)
+        self.result.extend(output)
+        lock.release()
 
 
-class ThreadPool:
-    """Pool of threads consuming tasks from a queue"""
+def make_request(url: str):
+    """
+    Function that makes a request on a given url,
+    it then accesses the response
+    """
+    session = requests.session()
+    request_results = session.get(url).json()["posts"]
+    return request_results
 
-    def __init__(self, num_threads):
-        self.tasks = Queue(num_threads)
 
-        for _ in range(num_threads):
-            Worker(self.tasks)
+def get_uniques(array):
+    """
+    Deduplicates array of dictionaries
+    """
+    return [
+        _value for _key, _value in enumerate(array) if _value not in array[_key + 1 :]
+    ]
 
-    def add_task(self, func, *args, **kargs):
-        """Add a task to the queue"""
-        self.tasks.put((func, args, kargs))
 
-    def map(self, func, args_list):
-        """Add a list of tasks to the queue"""
-        for args in args_list:
-            self.add_task(func, args)
+def sort_array(array, sort_value, sort_direction):
+    """
+    Sorts an array of dictionaries by a given value and direciton
+    """
+    if sort_value is None:
+        return sorted(
+            array,
+            key=lambda x: x["id"],
+            reverse=True if sort_direction == "desc" else False,
+        )
 
-    def wait_completion(self):
-        """Wait for completion of all the tasks in the queue"""
-        self.tasks.join()
+    elif sort_value in ["id", "reads", "likes", "popularity"]:
+        return sorted(
+            array,
+            key=lambda x: x[sort_value],
+            reverse=True if sort_direction == "desc" else False,
+        )
+
+    else:
+        return {"error": "sortBy parameter is invalid"}

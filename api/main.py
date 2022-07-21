@@ -1,29 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from curses.ascii import NUL
-from glob import glob
-import json
-from urllib.parse import _NetlocResultMixinStr
 from flask import Flask, jsonify, request
 import requests
 from threading import Thread, Lock
+from api.tools.spool import *
 
 app = Flask(__name__)
 
+# lock for threads
 lock = Lock()
 
-
+# ping route, only returns success or fail
 @app.route("/ping", methods=["GET"])
 def ping():
     return jsonify({"success": True}), 200
 
 
+# posts route, gets data for api request
 @app.route("/posts", methods=["GET", "POST"])
 def get_posts():
 
+    """
+    Accepts query string params to make a request from blog post
+    API endpoints. Creates multiple threads to make multiple API
+    requests as fast as possible. Includes sorting where applicable.
+    """
+
+    # get query strings params from url
     data = request.args
 
+    # create variables for holding params
     tags = [
         f"https://api.hatchways.io/assessment/blog/posts?tag={tag}"
         for tag in data.get("tag").split(",")
@@ -31,62 +38,23 @@ def get_posts():
     sortBy = data.get("sortBy")
     sortOrder = data.get("direction")
 
-    def make_request(url: str):
-        session = requests.session()
-        request_results = session.get(url).json()["posts"]
-        return request_results
-
-    def process1(input_array, tags_array: list, thread_lock):
-        for url in tags[: len(tags_array) // 2]:
-            thread_lock.acquire()
-            req_results = make_request(url)
-            input_array.extend(req_results)
-            thread_lock.release()
-
-    def process2(input_array, tags_array: list, thread_lock):
-        for url in tags[len(tags_array) // 2 :]:
-            thread_lock.acquire()
-            req_results = make_request(url)
-            input_array.extend(req_results)
-            thread_lock.release()
-
-    def get_uniques(array):
-        return [
-            _value
-            for _key, _value in enumerate(array)
-            if _value not in array[_key + 1 :]
-        ]
-
-    def sort_array(array, sort_value, sort_direction):
-        if sort_value is None:
-            return sorted(
-                array,
-                key=lambda x: x["id"],
-                reverse=True if sort_direction == "desc" else False,
-            )
-
-        elif sort_value in ["id", "reads", "likes", "popularity"]:
-            return sorted(
-                array,
-                key=lambda x: x[sort_value],
-                reverse=True if sort_direction == "desc" else False,
-            )
-
-        else:
-            return {"error": "sortBy parameter is invalid"}
-
     try:
+
+        # list to hold api results
         api_results = []
 
-        thread1 = Thread(target=process1(api_results, tags, lock), args=())
-        thread2 = Thread(target=process2(api_results, tags, lock), args=())
+        # list to hold threads
+        threads = []
 
-        thread1.start()
-        thread2.start()
+        # enumerate through tags, create thread for each tag and add to api_results
+        for key, value in enumerate(tags):
+            threads.append(Worker(key, make_request, value, api_results))
 
-        thread1.join()
-        thread2.join()
+        # join each thread in threads, this allows all threads to finish
+        for thread in threads:
+            thread.join()
 
+        # sort and de-duplicate api_results list
         api_results = sort_array(get_uniques(api_results), sortBy, sortOrder)
 
         return jsonify({"posts": api_results}), 200
